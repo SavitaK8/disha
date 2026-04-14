@@ -1,0 +1,42 @@
+name: disha
+description: DISHA — Indoor Blind Navigation System
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Camera
+  camera: ^0.10.5+9
+
+  # TFLite inference
+  tflite_flutter: ^0.10.4
+
+  # Image processing
+  image: ^4.1.7
+
+  # TTS
+  flutter_tts: ^3.8.5
+
+  # Audio beeps (for critical zone earcons)
+  audioplayers: ^5.2.1
+
+  # Isolate helper
+  flutter_isolate: ^2.0.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/models/yolov8n_320.tflite
+    - assets/labels/coco_labels.txt
+    - assets/audio/beep_critical.mp3
+    - assets/audio/blip_ambient.mp3
