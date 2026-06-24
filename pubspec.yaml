@@ -12,9 +12,13 @@ dependencies:
 
   # Camera
   camera: ^0.10.5+9
+  camera_android: ^0.10.8+17
+
+  # Permission
+  permission_handler: ^11.3.1
 
   # TFLite inference
-  tflite_flutter: ^0.10.4
+  tflite_flutter: ^0.12.1
 
   # Image processing
   image: ^4.1.7
@@ -27,6 +31,7 @@ dependencies:
 
   # Isolate helper
   flutter_isolate: ^2.0.4
+  provider: ^6.1.5+1
 
 dev_dependencies:
   flutter_test:

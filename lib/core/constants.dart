@@ -7,7 +7,7 @@
 const int kModelInputSize = 320;
 
 /// Confidence threshold — lower = more detections, more false positives
-const double kConfidenceThreshold = 0.45;
+const double kConfidenceThreshold = 0.30;
 
 /// IoU threshold for NMS
 const double kIouThreshold = 0.45;
@@ -38,11 +38,11 @@ const double kFlatVarianceThreshold = 0.04;
 
 /// ── Path filter ─────────────────────────────────────────────────────────────
 /// Only the centre N% of frame width is considered "in path"
-const double kPathCenterFraction = 0.40; // middle 40%
+const double kPathCenterFraction = 0.80; // middle 80%
 
 /// ── Temporal persistence ────────────────────────────────────────────────────
 /// Detection must appear in this many consecutive frames before alerting user
-const int kMinConfirmedFrames = 4;
+const int kMinConfirmedFrames = 1;
 
 /// ── Ground plane filter ─────────────────────────────────────────────────────
 /// Bottom N% of frame is auto-classified as floor when camera is at eye level

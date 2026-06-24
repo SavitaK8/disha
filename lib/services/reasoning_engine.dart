@@ -25,8 +25,8 @@ class ReasoningEngine {
 
   /// Pass raw YOLO detections each frame. Returns only confirmed obstacles.
   List<ConfirmedObstacle> process(List<Detection> detections) {
-    // Enrich with estimated distance (ARCore stub — Phase 3 will replace this)
-    final rich = detections.map(_estimateDistance).toList();
+    // Enrich with distance heuristic
+    final rich = detections.map((d) => _estimateDistance(d)).toList();
 
     final results = <ConfirmedObstacle>[];
     final currentLabels = <String>{};
@@ -161,48 +161,34 @@ class ReasoningEngine {
     return ObjectDirection.center;
   }
 
-  // ── Distance estimation stub ──────────────────────────────────────────────
-  // Phase 2: No ARCore. Use bounding-box height heuristic as rough proxy.
-  // Phase 3: Replace with real ARCore depth.
+  // ── Distance estimation ──────────────────────────────────────────────
+  // Use Geometry focal heuristic since LiDAR/ARCore is unavailable
 
   RichDetection _estimateDistance(Detection d) {
-    // Heuristic: assume objects have typical heights.
-    // distM ≈ (realHeight × focalLength) / pixelHeight
-    // Focal length in pixels ≈ modelInputSize / (2 × tan(fovV/2))
-    //
-    // We use a simple lookup for typical real-world heights:
-    const typicalHeights = <String, double>{
-      'person'          : 1.70,
-      'chair'           : 0.90,
-      'couch'           : 0.85,
-      'sofa'            : 0.85,
-      'dining table'    : 0.75,
-      'refrigerator'    : 1.80,
-      'bed'             : 0.60,
-      'toilet'          : 0.45,
-      'tv'              : 0.60,
-      'monitor'         : 0.40,
-      'potted plant'    : 0.50,
-      'bicycle'         : 1.10,
-      'dog'             : 0.55,
-      'cat'             : 0.30,
-      'suitcase'        : 0.70,
-    };
+    double distM = -1.0;
 
+    // Flat heuristic based on real world known heights
+    const typicalHeights = <String, double>{
+      'person': 1.70, 'chair': 0.90, 'couch': 0.85, 'sofa': 0.85,
+      'dining table': 0.75, 'refrigerator': 1.80, 'bed': 0.60,
+      'toilet': 0.45, 'tv': 0.60, 'monitor': 0.40, 'potted plant': 0.50,
+      'bicycle': 1.10, 'dog': 0.55, 'cat': 0.30, 'suitcase': 0.70,
+      'car': 1.50, 'truck': 2.50, 'door': 2.10, 'stairs': 0.30,
+    };
+    
     final typicalH = typicalHeights[d.label] ?? 0.80;
     final pixelH = d.bbox.height.clamp(1.0, kModelInputSize.toDouble());
-
-    // Vertical FOV ≈ horizontal * (height/width) — assume square model input
-    final fovV = kCamFovH; // square input → same
-    final focalPx = kModelInputSize / (2 * math.tan(fovV / 2 * math.pi / 180));
-
-    final distM = (typicalH * focalPx) / pixelH;
+    
+    // focal length in pixels = (width / 2) / tan(FOV / 2)
+    final focalPx = kModelInputSize / (2 * math.tan(kCamFovH / 2 * math.pi / 180));
+    
+    distM = (typicalH * focalPx) / pixelH;
 
     return RichDetection(
-      label     : d.label,
+      label: d.label,
       confidence: d.confidence,
-      bbox      : d.bbox,
-      distanceM : distM.clamp(0.1, 10.0),
+      bbox: d.bbox,
+      distanceM: distM.clamp(0.1, 10.0),
     );
   }
 

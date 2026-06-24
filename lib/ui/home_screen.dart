@@ -3,8 +3,8 @@
 // DISHA — Main camera screen with detection overlay
 // ─────────────────────────────────────────────────────────────────────────────
 
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/disha_controller.dart';
@@ -64,7 +64,7 @@ class HomeScreen extends StatelessWidget {
         _CameraView(ctrl: ctrl),
 
         // Detection overlay
-        if (ctrl.cameraController != null)
+        if (ctrl.cameraController != null && ctrl.cameraController!.value.isInitialized)
           _DetectionOverlay(ctrl: ctrl),
 
         // HUD — top bar
@@ -102,11 +102,10 @@ class _CameraView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final camCtrl = ctrl.cameraController;
-    if (camCtrl == null || !camCtrl.value.isInitialized) {
+    if (ctrl.cameraController == null || !ctrl.cameraController!.value.isInitialized) {
       return const SizedBox();
     }
-    return CameraPreview(camCtrl);
+    return CameraPreview(ctrl.cameraController!);
   }
 }
 
@@ -127,7 +126,7 @@ class _DetectionOverlay extends StatelessWidget {
           previewSize : Size(
             ctrl.cameraController!.value.previewSize!.height,
             ctrl.cameraController!.value.previewSize!.width,
-          ),
+          ), // Vertical dimension mapped locally
         ),
       ),
     );

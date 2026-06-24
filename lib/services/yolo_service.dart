@@ -12,6 +12,8 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
@@ -23,6 +25,11 @@ class YoloService {
   Interpreter? _interpreter;
   List<String> _labels = [];
   bool _ready = false;
+  bool _isNHWC = false;
+  List<int> _outputShape = [];
+
+  // Cached memory arrays so we don't trigger GC lockups every frame
+  Object? _outputTensor;
 
   bool get isReady => _ready;
 
@@ -43,79 +50,71 @@ class YoloService {
       'assets/models/yolov8n_320.tflite',
       options: interpreterOptions,
     );
+    // Check exact shapes
+    final inShape = _interpreter!.getInputTensors()[0].shape;
+    _outputShape = _interpreter!.getOutputTensors()[0].shape;
+    _isNHWC = inShape.last == 3;
+
+    Object allocate(List<int> shape, int index) {
+      if (index == shape.length - 1) return List.filled(shape[index], 0.0);
+      return List.generate(shape[index], (_) => allocate(shape, index + 1));
+    }
+    
+    _outputTensor = allocate(_outputShape, 0);
 
     _ready = true;
   }
 
   // ── Run inference ─────────────────────────────────────────────────────────
 
-  /// [jpegBytes] — raw JPEG/PNG from CameraImage converted to bytes
-  List<Detection> runOnBytes(Uint8List jpegBytes) {
+  Future<List<Detection>> runOnCameraImage(CameraImage image) async {
     if (!_ready || _interpreter == null) return [];
 
-    // Decode → resize to 320×320
-    final decoded = img.decodeImage(jpegBytes);
-    if (decoded == null) return [];
-    final resized = img.copyResize(
-      decoded,
-      width: kModelInputSize,
-      height: kModelInputSize,
-    );
+    // The raw camera buffer is now a JPEG!
+    final jpegBytes = image.planes[0].bytes;
 
-    // Build float32 tensor [1, 3, 320, 320]  (CHW, 0-1 normalised)
-    final input = _buildInputTensor(resized);
+    // Offload heavy image decoding and matrix manipulation to an Isolate
+    // so the main UI thread never freezes or drops frames again!
+    final tensor = await compute(_buildTensorInIsolate, {
+      'jpegBytes': jpegBytes,
+      'isNHWC': _isNHWC,
+      'size': kModelInputSize
+    });
 
-    // Output: [1, 84, 8400]
-    final outputShape = [1, 84, 8400];
-    final outputData =
-        List.generate(1, (_) => List.generate(84, (_) => Float32List(8400)));
+    if (tensor.isEmpty || _outputTensor == null) return [];
 
-    _interpreter!.run(input, outputData);
+    _interpreter!.run(tensor, _outputTensor!);
 
-    return _parseOutput(outputData[0]);
-  }
-
-  // ── Tensor builder ────────────────────────────────────────────────────────
-
-  List<List<List<List<double>>>> _buildInputTensor(img.Image image) {
-    // Shape [1][3][320][320]
-    final tensor = List.generate(
-      1,
-      (_) => List.generate(
-        3,
-        (c) => List.generate(
-          kModelInputSize,
-          (y) => List.generate(kModelInputSize, (x) {
-            final pixel = image.getPixel(x, y);
-            if (c == 0) return pixel.r / 255.0;
-            if (c == 1) return pixel.g / 255.0;
-            return pixel.b / 255.0;
-          }),
-        ),
-      ),
-    );
-    return tensor;
+    return _parseOutput(_outputTensor!);
   }
 
   // ── Parse YOLOv8 output ───────────────────────────────────────────────────
 
-  List<Detection> _parseOutput(List<List<double>> output) {
-    // output[row][anchor]  row 0-3 = cx,cy,w,h   row 4-83 = class scores
-    final numAnchors = output[0].length; // 8400
+  List<Detection> _parseOutput(Object outputObj) {
+    if (_outputShape.length != 3) return [];
+    
+    final out = outputObj as List<dynamic>;
+    final nested = out[0] as List<dynamic>;
+    
+    final firstDim = _outputShape[1];
+    final isTransposed = firstDim >= 1000; // [1, 8400, 84] vs [1, 84, 8400]
+    final numAnchors = isTransposed ? _outputShape[1] : _outputShape[2];
+    
     final rawDetections = <_RawBox>[];
 
     for (int a = 0; a < numAnchors; a++) {
-      final cx = output[0][a];
-      final cy = output[1][a];
-      final w  = output[2][a];
-      final h  = output[3][a];
+      final cx = isTransposed ? nested[a][0] : nested[0][a];
+      final cy = isTransposed ? nested[a][1] : nested[1][a];
+      final w  = isTransposed ? nested[a][2] : nested[2][a];
+      final h  = isTransposed ? nested[a][3] : nested[3][a];
 
       // Find best class
       double bestScore = 0;
       int bestClass = 0;
       for (int c = 4; c < 84; c++) {
-        if (output[c][a] > bestScore) {
-          bestScore = output[c][a];
+        double score = isTransposed ? nested[a][c] : nested[c][a];
+        if (score > bestScore) {
+          bestScore = score;
           bestClass = c - 4;
         }
       }
@@ -201,4 +200,38 @@ class _RawBox {
     required this.classIdx,
     required this.label,
   });
+}
+
+// ── ISOLATE TOP-LEVEL FUNCTION ─────────────────────────────────────────────
+// This runs on a separate CPU thread to protect the UI!
+List<dynamic> _buildTensorInIsolate(Map<String, dynamic> args) {
+  final Uint8List jpegBytes = args['jpegBytes'];
+  final bool isNHWC = args['isNHWC'];
+  final int size = args['size'];
+
+  final decoded = img.decodeImage(jpegBytes);
+  if (decoded == null) return [];
+
+  // 1. Rotate upright (Sensor is landscape by default)
+  final rotated = img.copyRotate(decoded, angle: 90);
+  
+  // 2. Scale exactly to YOLO requirements (320x320)
+  final resized = img.copyResize(rotated, width: size, height: size);
+
+  // 3. Build shape: [1][c][y][x] or [1][y][x][c]
+  if (isNHWC) {
+    // NHWC: [1][320][320][3]
+    return List.generate(1, (_) => List.generate(size, (y) => List.generate(size, (x) {
+      final pixel = resized.getPixel(x, y);
+      return [pixel.r / 255.0, pixel.g / 255.0, pixel.b / 255.0];
+    })));
+  } else {
+    // CHW: [1][3][320][320]
+    return List.generate(1, (_) => List.generate(3, (c) => List.generate(size, (y) => List.generate(size, (x) {
+        final pixel = resized.getPixel(x, y);
+        if (c == 0) return pixel.r / 255.0;
+        if (c == 1) return pixel.g / 255.0;
+        return pixel.b / 255.0;
+    }))));
+  }
 }

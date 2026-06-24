@@ -3,7 +3,6 @@
 // DISHA — App entry point
 // ─────────────────────────────────────────────────────────────────────────────
 
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -25,19 +24,16 @@ Future<void> main() async {
     statusBarIconBrightness: Brightness.light,
   ));
 
-  final cameras = await availableCameras();
-
-  runApp(DishaApp(cameras: cameras));
+  runApp(const DishaApp());
 }
 
 class DishaApp extends StatelessWidget {
-  final List<CameraDescription> cameras;
-  const DishaApp({super.key, required this.cameras});
+  const DishaApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => DishaController()..init(cameras),
+      create: (_) => DishaController()..init(),
       child: MaterialApp(
         title: 'DISHA दिशा',
         debugShowCheckedModeBanner: false,
