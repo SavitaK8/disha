@@ -5,7 +5,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -165,11 +164,4 @@ class DishaController extends ChangeNotifier {
     _yoloService.dispose();
     super.dispose();
   }
-}
-
-// Top-level function for compute() — must be outside class
-List<Detection> _runYoloInBackground(Map<String, dynamic> args) {
-  // In production move interpreter to isolate. For now returns empty
-  // so the synchronous fallback in _onFrame is used.
-  return [];
 }

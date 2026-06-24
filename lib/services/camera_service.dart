@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart';
 
 class CameraService {
   CameraController? _controller;
@@ -34,7 +33,7 @@ class CameraService {
     await _controller!.initialize();
     _isInit = true;
 
-    // Start streaming raw YUV immediately
+    // Start streaming JPEG frames to the pipeline
     _controller!.startImageStream((image) {
       if (!_frameController.isClosed) {
         _frameController.add(image);
@@ -44,8 +43,9 @@ class CameraService {
 
   Future<void> dispose() async {
     _isInit = false;
+    // Stop streaming first, THEN close the controller
+    try { await _controller?.stopImageStream(); } catch (_) {}
     await _frameController.close();
-    await _controller?.stopImageStream();
     await _controller?.dispose();
   }
 }

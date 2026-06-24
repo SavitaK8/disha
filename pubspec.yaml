@@ -29,8 +29,6 @@ dependencies:
   # Audio beeps (for critical zone earcons)
   audioplayers: ^5.2.1
 
-  # Isolate helper
-  flutter_isolate: ^2.0.4
   provider: ^6.1.5+1
 
 dev_dependencies:

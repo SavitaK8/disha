@@ -130,20 +130,6 @@ class ReasoningEngine {
     return box.y > frameH * (1 - kGroundPlaneBottomFraction);
   }
 
-  // Stage 3b — flat surface (open door) check.
-  // Requires depth samples from ARCore (Phase 3).
-  // Returns false (= not flat) until real depth is available.
-  bool _isFlatSurface(List<double> depthSamples) {
-    if (depthSamples.isEmpty) return false;
-    final mean =
-        depthSamples.reduce((a, b) => a + b) / depthSamples.length;
-    final variance = depthSamples
-            .map((d) => math.pow(d - mean, 2))
-            .reduce((a, b) => a + b) /
-        depthSamples.length;
-    return variance < kFlatVarianceThreshold;
-  }
-
   // ── Stage 4 helpers ───────────────────────────────────────────────────────
 
   bool _isInPath(BoundingBox box) {

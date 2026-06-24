@@ -1,0 +1,15 @@
+# GitHub Linguist overrides — force correct language detection
+# See: https://github.com/github-linguist/linguist/blob/main/docs/overrides.md
+
+# Mark web scaffold as non-project code
+web/** linguist-vendored
+
+# Mark platform boilerplate as generated
+linux/** linguist-generated
+macos/** linguist-generated
+windows/** linguist-generated
+ios/** linguist-generated
+android/app/src/main/res/** linguist-generated
+
+# Ensure Dart is primary
+*.dart linguist-language=Dart
